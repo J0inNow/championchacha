@@ -4,48 +4,42 @@
 <head>
     <!-- Meta Pixel Code -->
     <script>
-        !function (f, b, e, v, n, t, s)
-        { if (f.fbq) return; n = f.fbq = function () { n.callMethod ?
-            n.callMethod.apply(n, arguments) : n.queue.push(arguments) };
+        !function (f, b, e, v, n, t, s) {
+            if (f.fbq) return; n = f.fbq = function () {
+                n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments)
+            };
             if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = '2.0';
             n.queue = []; t = b.createElement(e); t.async = !0;
             t.src = v; s = b.getElementsByTagName(e)[0];
-            s.parentNode.insertBefore(t, s) }(window, document, 'script',
-                'https://connect.facebook.net/en_US/fbevents.js');
+            s.parentNode.insertBefore(t, s)
+        }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+
         fbq('init', '1168785161738902');
-        fbq('track', 'PageView');
+
+        // Fire PageView with eventID + callback (helps Pixel Helper see it even with quick interactions)
+        fbq('track', 'PageView', {}, {
+            eventID: 'pv_' + Date.now(),
+            eventCallback: function () {
+                console.log('FB Pixel PageView sent');
+            }
+        });
     </script>
-    <noscript><img height="1" width="1" style="display:none"
-            src="https://www.facebook.com/tr?id=1168785161738902&ev=PageView&noscript=1" /></noscript>
+    <noscript>
+        <img height="1" width="1" style="display:none"
+             src="https://www.facebook.com/tr?id=1168785161738902&ev=PageView&noscript=1" />
+    </noscript>
     <!-- End Meta Pixel Code -->
 
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Champion Chacha</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @keyframes btnAnimation {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
-
-        .tetegrambtn {
-            background-size: 300% 300%;
-            animation: btnAnimation 2s ease infinite;
-            transition: transform 0.3s ease;
-        }
-
+        @keyframes btnAnimation { 0% {transform: scale(1);} 50% {transform: scale(1.1);} 100% {transform: scale(1);} }
+        .tetegrambtn { background-size: 300% 300%; animation: btnAnimation 2s ease infinite; transition: transform 0.3s ease; }
         .hurry { animation: hurry 1s linear infinite forwards; }
-
-        @keyframes hurry {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-
+        @keyframes hurry { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
         .tetegrambtn:hover { transform: scale(1.2); }
-
-        /* Optional: show the page is clickable everywhere */
         body { cursor: pointer; }
     </style>
 </head>
@@ -83,7 +77,7 @@
 
                 <div class="my-10 w-full grid place-items-center">
                     <a href="https://t.me/+sSgbSp2bBAVlOGI5">
-                        <button class="tetegrambtn px-6 py-4 rounded-lg text-lg flex gap-2 place-items-center font-bold text-white shadow-lg hover:scale-110 border-b-8 border-red-500 my-4"
+                        <button class="tetegrambtn px-6 py-4 rounded-lg text-lg flex gap-2 place-items-center  font-bold text-white shadow-lg hover:scale-110 border-b-8 border-red-500 my-4"
                             style="background-color: rgb(2, 212, 216);">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="green"
                                 class="bi bi-telegram" viewBox="0 0 16 16" aria-hidden="true">
@@ -108,39 +102,71 @@
     </div>
 
     <script>
-        // Set your target URL once and reuse it
         const tgUrl = 'https://t.me/+sSgbSp2bBAVlOGI5';
 
-        // Make any click on the page open the link (except clicks on existing <a> tags, which already work)
-        document.body.addEventListener('click', function (e) {
-            const isAnchorClick = e.target.closest('a');
-            if (!isAnchorClick) {
-                window.location.href = tgUrl;
+        // Track + redirect helper to avoid losing events on navigation
+        function trackAndRedirect(eventName, params = {}, url = tgUrl) {
+            let redirected = false;
+            const go = () => {
+                if (redirected) return;
+                redirected = true;
+                window.location.href = url;
+            };
+
+            try {
+                fbq('track', eventName, params, {
+                    eventID: eventName + '_' + Date.now(),
+                    eventCallback: go
+                });
+                // Fallback if callback doesn’t fire (ad blockers, network issues)
+                setTimeout(go, 500);
+            } catch (e) {
+                // If fbq is not available, just redirect
+                go();
             }
+        }
+
+        // Make any click on the page open the Telegram link,
+        // and ensure the Lead event is sent before redirect
+        document.body.addEventListener('click', function (e) {
+            const a = e.target.closest('a');
+            // Prevent default navigation; we’ll handle it to ensure tracking
+            e.preventDefault();
+
+            const href = a?.getAttribute('href') || tgUrl;
+            const isTelegram = /t\.me|telegram\.me/.test(href);
+            const dest = isTelegram ? href : tgUrl;
+
+            trackAndRedirect('Lead', { content_name: 'Join Telegram CTA' }, dest);
         });
 
-        // Countdown and auto-redirect
+        // Countdown and auto-redirect with tracking
         let timeLeft = 30; // seconds
         const countdownElement = document.getElementById('countdown');
-        let countdownTimer;
 
         function tick() {
             countdownElement.textContent = timeLeft;
 
             if (timeLeft <= 0) {
-                clearInterval(countdownTimer);
-                // Small delay so users see "0" before redirect
-                setTimeout(() => {
+                // Track a custom event before redirecting
+                try {
+                    fbq('trackCustom', 'CountdownRedirect', { seconds_remaining: 0 }, {
+                        eventID: 'cdr_' + Date.now(),
+                        eventCallback: function () {
+                            window.location.href = tgUrl;
+                        }
+                    });
+                    setTimeout(() => { window.location.href = tgUrl; }, 800);
+                } catch {
                     window.location.href = tgUrl;
-                }, 300);
+                }
                 return;
             }
 
             timeLeft -= 1;
+            setTimeout(tick, 1000);
         }
-
-        countdownTimer = setInterval(tick, 1000);
-        tick(); // Initialize immediately so "30" shows right away
+        tick();
     </script>
 </body>
 
